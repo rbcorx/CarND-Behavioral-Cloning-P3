@@ -1,0 +1,170 @@
+# extract 10 images (center) from csv
+
+# imput image 160 x 320
+# preprocess data
+
+# view images in matplot
+
+# build basic model
+
+# train model
+
+# save model
+"""
+# left/right images adjust steering angle, check trigonometry
+
+
+"""
+import os
+import csv
+import cv2
+
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Flatten, Lambda, Cropping2D, Convolution2D, MaxPooling2D, Dropout
+import numpy as np
+
+# settings
+# limit images loaded in memory by setting batch limit for generator
+IMG_BATCH_SIZE = 10000
+# path to folder where data is kept
+PATH_TO_DATA_FOLDER = 'data'
+# data heirachy should be one more dir deep as this may contain multiple dirs
+#   which contain different training data
+
+LOG_FILE = 'driving_log.csv'
+
+# for each dir entry, training data is fetched from corresponding subdirectory
+# TODO add all folders
+PATHS_TO_IMG_FOLDERS = ['data', 'data_2', 'data_center', 'data_ori']
+PATH_TO_IMG = 'IMG'
+
+# for each dir entry, all images found will be augmented by horizontal flip
+AUGMENT_DATA = ['data', 'data_2', 'data_center', 'data_ori']
+# for each dir entry, all images will be replicated dict value times
+# TODO change to 10
+MUTATE_DATA = {'data_center': 3}
+
+# inputs
+# center, left, right
+STEERING_CORRECTION_FACTORS = [0, 1.0 / 10, -1.0 / 10]
+
+# TODO set to True
+INCLUDE_SIDES = False
+
+
+# loading data
+def get_batch(side_images=True):
+    """Returns next images, angle of steering batch"""
+    images = []
+    ang = []
+    for folder in PATHS_TO_IMG_FOLDERS:
+        log_file_path = os.path.join(PATH_TO_DATA_FOLDER, folder, LOG_FILE)
+        with open(log_file_path) as logs:
+            reader = csv.reader(logs)
+            for row in reader:
+                if row[0] == "center":
+                    continue
+
+                def get_img(img_entry):
+                    path = os.path.join(PATH_TO_DATA_FOLDER, folder, PATH_TO_IMG,
+                                        img_entry.split('/')[-1])
+                    return cv2.imread(path)
+
+                if side_images:
+                    images_to_add = [get_img(row[i]) for i in range(3)]
+                    angs_to_add = [float(row[3]) + offset for offset in STEERING_CORRECTION_FACTORS]
+                else:
+                    images_to_add = [get_img(row[0]), ]
+                    angs_to_add = [float(row[3]), ]
+
+                # augmenting image by flipping horizontally
+                if folder in AUGMENT_DATA:
+                    images_to_add.extend([cv2.flip(image, 1) for image in images_to_add])
+                    angs_to_add.extend([angle * -1 for angle in angs_to_add])
+
+                # mutating data by replicating it `n` times given by dict val
+                if folder in MUTATE_DATA:
+                    images_to_add = list(map(lambda x: x.copy(),
+                                             images_to_add * MUTATE_DATA[folder]))
+                    angs_to_add = angs_to_add * MUTATE_DATA[folder]
+
+                # adding obtained data to list
+                images.extend(images_to_add)
+                ang.extend(angs_to_add)
+
+                # yielding current batch
+                if len(images) >= IMG_BATCH_SIZE:
+                    yield (images, ang)
+                    images = []
+                    ang = []
+
+    yield (images, ang)
+
+
+# model
+# hyperparams
+epochs = 3
+# batch_size = 100
+learnrate = 0.001
+
+# layers
+layers = [
+    # preprocessing
+    Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160, 320, 3),),
+    Cropping2D(cropping=((70, 25), (0, 0))),
+
+    # conv 1
+    Convolution2D(6, 5, 5, border_mode='valid', activation='relu'),
+    MaxPooling2D((2, 2), (1, 2, 2, 1)),
+    Dropout(0.25),
+
+    # conv 2
+    Convolution2D(16, 5, 5, border_mode='valid', activation='relu'),
+    MaxPooling2D((2, 2), (1, 2, 2, 1)),
+    Dropout(0.25),
+
+    # flatten
+    Flatten(),
+
+    # dense
+    Dense(120, activation='relu'),
+    Dropout(0.5),
+
+    # dense
+    Dense(84, activation='relu'),
+    Dropout(0.5),
+
+    # dense
+    Dense(1,),
+]
+
+# model compile
+model = Sequential(layers)
+
+optimizer = keras.optimizers.Adam(lr=learnrate)
+
+model.compile(
+    loss="mse",
+    optimizer=optimizer,
+)
+
+# training model
+total = 0
+for images, angles in get_batch(INCLUDE_SIDES):
+    total += len(images)
+
+    # preprocessing data
+    x_train = np.array(images)
+    y_train = np.array(angles)
+
+    # input normalization performed in Lambda layer
+    # TODO remove validation here and use evaluate instead
+    model.fit(x_train, y_train, validation_split=0.2, shuffle=True, nb_epoch=epochs,)
+    # batch_size=batch_size)
+
+model.save('model.h5')
+
+# TODO evaluation
+
+print ("total images processed: ", total)
