@@ -237,21 +237,37 @@ def get_img(img_entry, folder, fake=False):
     return cv2.imread(path)
 
 
-def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, rand=False):
+def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, rand=False,
+                              p_drop_zero=None, drop_zero_history_lim=None):
     if type(img_index) == int:
         img_index = [img_index, ]
     if type(angle_offset) == int:
         angle_offset = [angle_offset, ]
     images = []
     angles = []
+    history = []
     for row in data:
+        angle = float(row[3])
+
+        # dropping consecutive zero angles over a limit
+        if angle == 0.0 and drop_zero_history_lim:
+            if len(history) >= drop_zero_history_lim:
+                continue
+            history.append(angle)
+        elif drop_zero_history_lim:
+            history = []
+
+        # dropping zero angles with probability
+        if p_drop_zero:
+            if angle == 0.0 and np.random.uniform() > p_drop_zero:
+                continue
         if rand:
             index = random.randint(0, len(img_index)-1)
             images.append(get_img(row[img_index[index]], row[-1], fake))
-            angles.append(float(row[3]) + angle_offset[index])
+            angles.append(angle + angle_offset[index])
         else:
             images.extend([get_img(row[i], row[-1], fake) for i in img_index])
-            angles.extend([float(row[3]) + offset for offset in angle_offset])
+            angles.extend([angle + offset for offset in angle_offset])
     return (images, angles)
 
 
