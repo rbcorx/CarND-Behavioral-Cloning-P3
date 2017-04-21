@@ -1,24 +1,8 @@
-"""
-preprocessing images or augmenting to enhance training data
-
-steps to achive:
-normal distribution of samples with steering angles evenly distributed
-
-resize images
-shear
-shift
-rotate
-brightness
-shadow patch - draw random polygon
-mirror image
-
-
-"""
 import os
 import csv
-# %matplotlib inline
 import cv2
 import math
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,6 +36,7 @@ def resize(image, steer, fake=False):
         image["w"] //= 2
         return (image, steer)
     scale = tuple(reversed(list(map(lambda x: x // 2, _img_specs(image, fake)))))
+    # (64, 64)
     return (cv2.resize(image, scale, interpolation=cv2.INTER_AREA), steer)
 
 
@@ -60,16 +45,16 @@ def rand_warp_shear(image, steer, s_range=[0, 75], shear_right=False, fake=False
     mi, mx = s_range
     h, w = _img_specs(image, fake)
     # shear = int(np.random.uniform() * (mx - mi) + mi)
-    shear = min(abs(np.random.normal(s_range[0], s_range[1] / 2)), s_range[1])
+    shear = abs(np.random.normal(s_range[0], s_range[1])) # min(, s_range[1])
     if shear_right:
         ori_pts = np.float32([[0, 0], [0, h], [w // 2, h // 2]])
         new_pts = np.float32([[0, 0], [0, h], [w // 2 + shear, h // 2]])
         # TODO mark shear correction coefficient
-        steer = min(1, steer + math.atan(shear / (h / 2) / 20))
+        steer = min(1, steer + math.atan(shear / (h / 2) / 5))
     else:
         ori_pts = np.float32([[w, 0], [w, h], [w // 2, h // 2]])
         new_pts = np.float32([[w, 0], [w, h], [w // 2 - shear, h // 2]])
-        steer = max(-1, steer + math.atan(-shear / (h / 2) / 20))
+        steer = max(-1, steer + math.atan(-shear / (h / 2) / 5))
     if fake:
         return (image, steer)
     matrix = cv2.getAffineTransform(ori_pts, new_pts)
@@ -105,7 +90,7 @@ def rand_warp_rotate(image, steer, range=[-10, 10], left_pivot=False, fake=False
 
 def flip(image, steer, p_flip=0.5, fake=False):
     """changes steering angle cahnges sign only"""
-    if np.random.uniform() >= p_flip:
+    if np.random.uniform() <= p_flip:
         steer = -steer
         if fake:
             return (image, steer)
@@ -147,14 +132,14 @@ def create_transform_pipeline(*args, **kwargs):
 # def process_image(image, steer):
 
 
-def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None):
+def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None, augment=True,):
     # normal_dis=False, sample_size=None):
     left_turn_params = {
         rand_warp_rotate: {"left_pivot": False},
         rand_warp_shear: {"shear_right": False},
     }
     left_turn_trans_img_pipeline = create_transform_pipeline(
-        crop_img, resize, rand_brightness, rand_warp_shear, rand_warp_rotate, flip,
+        crop_img, rand_brightness, rand_warp_shear, resize, # flip, rand_warp_rotate,
         params=left_turn_params
     )
     right_turn_params = {
@@ -162,20 +147,30 @@ def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None):
         rand_warp_shear: {"shear_right": True},
     }
     right_turn_trans_img_pipeline = create_transform_pipeline(
-        crop_img, resize, rand_brightness, rand_warp_shear, rand_warp_rotate, flip,
+        crop_img, rand_brightness, rand_warp_shear, resize, #  flip, rand_warp_rotate,
         params=right_turn_params
+    )
+    not_augmented_img_pipeline = create_transform_pipeline(
+        crop_img, resize,
+        params={}
     )
     args = [plot, fake]
 
-    def augment_image(image, steer):
+    def augment_image(image, steer, flipit=False):
+        if flipit:
+            return flip(image, steer, 1.0, fake=fake)
+
+        if not augment:
+            return not_augmented_img_pipeline(image, steer, *args)
+
         if accepted_angles:
             if steer not in accepted_angles:
-                return (image, steer)
+                return not_augmented_img_pipeline(image, steer, *args)
         # TODO generalize coin tosses
         # Monkey patch normalized distri
         if steer == 0.0:
-            if np.random.uniform() <= 0.2:
-                return (image, steer)
+            if np.random.uniform() <= 0.05:
+                return not_augmented_img_pipeline(image, steer, *args)
 
         if plot:
             plot_img(image)
@@ -191,7 +186,7 @@ def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None):
 
 LOG_HEADERS = ["center", "left", "right", "steering", "throttle"]
 
-PATH_TO_DATA_FOLDER = 'data'
+PATH_TO_DATA_FOLDER = 'data/track1'
 # data heirachy should be one more dir deep as this may contain multiple dirs
 #   which contain different training data
 
@@ -199,7 +194,8 @@ LOG_FILE = 'driving_log.csv'
 
 # for each dir entry, training data is fetched from corresponding subdirectory
 # TODO add all folders
-PATHS_TO_IMG_FOLDERS = ['data_ori', ]
+# PATHS_TO_IMG_FOLDERS = ['data_ori', ]
+PATHS_TO_IMG_FOLDERS = ['recovery', 'drive']
 # 'data_sides', 'data_lap', 'data_reverse']
 # 'data_ori']#, 'data_sides', 'data_lap', 'data_reverse']
 
@@ -241,7 +237,7 @@ def get_img(img_entry, folder, fake=False):
     return cv2.imread(path)
 
 
-def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False):
+def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, rand=False):
     if type(img_index) == int:
         img_index = [img_index, ]
     if type(angle_offset) == int:
@@ -249,32 +245,61 @@ def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False):
     images = []
     angles = []
     for row in data:
-        images.extend([get_img(row[i], row[-1], fake) for i in img_index])
-        angles.extend([float(row[3]) + offset for offset in angle_offset])
+        if rand:
+            index = random.randint(0, len(img_index)-1)
+            images.append(get_img(row[img_index[index]], row[-1], fake))
+            angles.append(float(row[3]) + angle_offset[index])
+        else:
+            images.extend([get_img(row[i], row[-1], fake) for i in img_index])
+            angles.extend([float(row[3]) + offset for offset in angle_offset])
     return (images, angles)
 
-STEERING_CORRECTION_FACTORS = [0, 1.0 / 10, -1.0 / 10]
+
+STEERING_CORRECTION_FACTORS = [0, 0.15, -0.15]
 # TODO set to True
 INCLUDE_SIDES = False
 # set to false to also augment side images
 AUGMENT_CENTER_ONLY = True
-def generate_batch(data, batch_size=128):
+
+
+def generate_batch(data, augment=True, batch_size=128, fake=False, flipit=False, rand_camera=False):
+    aug_image = create_aug_img_pipeline(fake=fake, accepted_angles=[0, 0.15, -0.15],
+                                        augment=augment)
     while True:
+        np.random.shuffle(data)
         for i in range(0, len(data), batch_size):
             batch = data[i:i + batch_size]
             # adjusting for all camera images
 
-            images, steers = extract_samples_from_rows(batch, [0, 1, 2], [0, -0.15, 0.15])
-            aug_image = create_aug_img_pipeline(accepted_angles=[0, 0.15, -0.15])
+            images, steers = extract_samples_from_rows(batch, [0, 1, 2], [0, -0.15, 0.15],
+                                                       fake=fake, rand=rand_camera)
+
             images_a, steers_a = zip(*list(map(aug_image, images, steers)))
-            yield images_a, steers_a
+            images_a, steers_a = list(images_a), list(steers_a)
+
+            if flipit:
+                flipped_images = []
+                flipped_steers = []
+                for i in range(len(images_a)):
+                    _img, _steer = aug_image(images_a[i], steers_a[i], flipit=True)
+                    flipped_images.append(_img)
+                    flipped_steers.append(_steer)
+                images_a.extend(flipped_images)
+                steers_a.extend(flipped_steers)
+
+            np.random.shuffle(images_a)
+            np.random.shuffle(steers_a)
+            yield (np.array(images_a), np.array(steers_a))
 
 
-def get_data():
-    data = parse_logs()
+def get_data(limit=None):
+    if limit:
+        data = parse_logs(limit)
+    else:
+        data = parse_logs()
     np.random.shuffle(data)
     # TODO generalize
-    sample_size = len(data) * 3
+    sample_size = len(data) * 2
     return (data, sample_size)
 
 # testing utilities

@@ -6,11 +6,11 @@ import sklearn
 from sklearn.model_selection import train_test_split
 import keras
 from keras.models import Sequential
-from keras.layers import Dense, Flatten, Lambda, Cropping2D, Convolution2D, MaxPooling2D, Dropout
+from keras.layers import Dense, Flatten, Lambda, Cropping2D, Convolution2D, MaxPooling2D, Dropout, Activation
 import numpy as np
 import matplotlib.pyplot as plt
 
-from preprocess import get_data, generate_batch
+from preprocess import get_data, generate_batch, extract_samples_from_rows
 
 STEERING_CORRECTION_FACTORS = [0, 1.0 / 10, -1.0 / 10]
 
@@ -21,166 +21,90 @@ AUGMENT_CENTER_ONLY = True
 
 # Mulitplier for counting total training samples after augmentation
 camera_sides = (3 if INCLUDE_SIDES else 1)
-AUGMENTED_SAMPLE_MULTIPLIER = camera_sides + (1 if AUGMENT_CENTER_ONLY else camera_sides)
-
-samples = []
-sample_count = 0
-for folder in PATHS_TO_IMG_FOLDERS:
-        log_file_path = os.path.join(PATH_TO_DATA_FOLDER, folder, LOG_FILE)
-        count = 0
-        with open(log_file_path) as logs:
-            reader = csv.reader(logs)
-            for row in reader:
-                if row[0] == "center":
-                    continue
-                row.append(folder)
-                samples.append(row)
-                count += 1
-        if folder in MUTATE_DATA:
-            count *= MUTATE_DATA[folder]
-        sample_count += count
-
-# count of total samples to be processed
-sample_count *= AUGMENTED_SAMPLE_MULTIPLIER
-
-
-# loading data
-def get_batch(samples, side_images=True):
-    """Returns next (images, angle of steering) batch"""
-    while True:
-        samples = sklearn.utils.shuffle(samples)
-        count_b = 0
-        images = []
-        ang = []
-        for row in samples:
-            folder = row[-1]
-
-            # fetches image from given path
-            def get_img(img_entry):
-                path = os.path.join(PATH_TO_DATA_FOLDER, folder, PATH_TO_IMG,
-                                    img_entry.split('/')[-1])
-                return cv2.imread(path)
-
-            if side_images:
-                images_to_add = [get_img(row[i]) for i in range(3)]
-                angs_to_add = [float(row[3]) + offset for offset in STEERING_CORRECTION_FACTORS]
-            else:
-                images_to_add = [get_img(row[0]), ]
-                angs_to_add = [float(row[3]), ]
-
-            # augmenting image by flipping horizontally
-            if folder in AUGMENT_DATA:
-                if not AUGMENT_CENTER_ONLY:
-                    # augment all cameras
-                    images_to_add.extend([cv2.flip(image, 1) for image in images_to_add])
-                    angs_to_add.extend([angle * -1 for angle in angs_to_add])
-                else:
-                    # augment center camera image only
-                    images_to_add.append(cv2.flip(images_to_add[0], 1))
-                    angs_to_add.append(angs_to_add[0] * -1)
-
-            # mutating data by replicating it `n` times given by dict val
-            # TODO sample weights as replacement for replication?
-            if folder in MUTATE_DATA:
-                images_to_add = list(map(lambda x: x.copy(),
-                                         images_to_add * MUTATE_DATA[folder]))
-                angs_to_add = angs_to_add * MUTATE_DATA[folder]
-
-            # adding obtained data to list
-            images.extend(images_to_add)
-            ang.extend(angs_to_add)
-
-            # yielding current batch
-            if len(images) >= IMG_BATCH_SIZE:
-                count_b += len(images)
-                # TODO shuffle each batch?
-                yield (np.array(images),
-                       np.array(ang))
-                images = []
-                ang = []
-
-        count_b += len(images)
-        yield (np.array(images),
-               np.array(ang))
-
 
 # model
 # hyperparams
-epochs = 10
+epochs = 7
 # batch_size = 100
 learnrate = 0.001
 
-# layers
-layers = [
-    # preprocessing
-    Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160, 320, 3),),
-    Cropping2D(cropping=((60, 25), (0, 0))),
+def create_new_model():
+    model = Sequential()
+    model.add(Lambda(lambda x: x / 127.5 - 1.,
+              input_shape=(34, 160, 3),))
+    model.add(Convolution2D(24, 5, 5, subsample=(2, 2), border_mode="same"))
+    model.add(Activation('relu'))
+    model.add(Dropout(.5))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(1, 1)))
 
-    # conv 1
-    Convolution2D(32, 5, 5, border_mode='valid', activation='relu'),
-    MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    model.add(Convolution2D(36, 5, 5, subsample=(2, 2), border_mode="same"))
+    model.add(Activation('relu'))
+    model.add(Dropout(.5))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(1, 1)))
 
-    # conv 2
-    Convolution2D(16, 5, 5, border_mode='valid', activation='relu'),
-    MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    model.add(Convolution2D(48, 5, 5, subsample=(2, 2), border_mode="same"))
+    model.add(Activation('relu'))
+    model.add(Dropout(.5))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(1, 1)))
 
-    # conv 3
-    Convolution2D(16, 5, 5, border_mode='valid', activation='relu'),
-    MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    model.add(Convolution2D(64, 3, 3, border_mode="same"))
+    model.add(Activation('relu'))
+    model.add(Dropout(.5))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(1, 1)))
 
-    # conv 4
-    Convolution2D(8, 5, 5, border_mode='valid', activation='relu'),
-    MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    model.add(Convolution2D(64, 3, 3, border_mode="same"))
+    model.add(Activation('relu'))
+    model.add(Dropout(.5))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(1, 1)))
 
-    # conv 5
-    Convolution2D(4, 5, 5, border_mode='valid', activation='relu'),
-    MaxPooling2D((2, 2)),
-    Dropout(0.5),
+    model.add(Flatten())
+    model.add(Dropout(.2))
+    model.add(Activation('relu'))
+    model.add(Dense(1164))
+    model.add(Dropout(.5))
+    model.add(Activation('relu'))
+    model.add(Dense(100))
+    model.add(Dropout(.5))
+    model.add(Activation('relu'))
+    model.add(Dense(50))
+    model.add(Dropout(.5))
+    model.add(Activation('relu'))
+    model.add(Dense(10))
+    model.add(Dropout(.5))
+    model.add(Activation('relu'))
+    model.add(Dense(1))
 
-    # flatten
-    Flatten(),
+    model.summary()
 
-    # dense
-    Dense(64, activation='relu'),
-    Dropout(0.5),
+    optimizer = keras.optimizers.Adam(lr=learnrate)
 
-    # dense
-    Dense(64, activation='relu'),
-    Dropout(0.5),
+    # Patch change optimizer to mae. Research
+    model.compile(
+        loss="mse",
+        optimizer=optimizer,
+    )
+    return model
 
-    # dense
-    Dense(32, activation='relu'),
-    Dropout(0.5),
 
-    # dense
-    Dense(1,),
-]
+def reload_model():
+    return keras.models.load_model("model.h5")
 
-# model compile
-model = Sequential(layers)
 
-optimizer = keras.optimizers.Adam(lr=learnrate)
-
-model.compile(
-    loss="mse",
-    optimizer=optimizer,
-)
+model = create_new_model()
 
 # shuffling samples
 # TODO change to inplace shuffling with np.random.shuffle
-samples = sklearn.utils.shuffle(samples)
+samples, sample_count = get_data()
 
-training_samples, validation_samples = samples[:len(samples) // 5], samples[len(samples) // 5:]
+validation_samples, training_samples = samples[:len(samples) // 100], samples[len(samples) // 100:]
 
-validation_sample_size = sample_count // 5
-training_sample_size = sample_count - validation_sample_size
+validation_sample_size = sample_count // 100
+# TODO add modifier
+training_sample_size = sample_count - (validation_sample_size)
 
-train_gen = get_batch(training_samples, INCLUDE_SIDES)
-validation_gen = get_batch(validation_samples, INCLUDE_SIDES)
+# , INCLUDE_SIDES
+train_gen = generate_batch(training_samples, augment=False, flipit=True, rand_camera=True)
+validation_gen = generate_batch(validation_samples, False, flipit=True, rand_camera=True)
 
 print ("training {} samples.".format(sample_count))
 
@@ -188,23 +112,13 @@ history_object = model.fit_generator(train_gen, samples_per_epoch=training_sampl
                                      nb_epoch=epochs, validation_data=validation_gen,
                                      nb_val_samples=validation_sample_size,)
 
-### print the keys contained in the history object
-print(history_object.history.keys())
+print("training finished!!!!!!!!!!!!")
+model_json = model.to_json()
+with open("model.json", "w") as json_file:
+    json_file.write(model_json)
+model.save("model.h5")
 
 # saving history object
 import pickle
 with open('history.pk', 'wb') as handle:
     pickle.dump(history_object.history, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-### plot the training and validation loss for each epoch
-# plt.plot(history_object.history['loss'])
-# plt.plot(history_object.history['val_loss'])
-# plt.title('model mean squared error loss')
-# plt.ylabel('mean squared error loss')
-# plt.xlabel('epoch')
-# plt.legend(['training set', 'validation set'], loc='upper right')
-# plt.show()
-
-# model.save('model.h5')
-
-# TODO evaluation
