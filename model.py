@@ -24,7 +24,7 @@ camera_sides = (3 if INCLUDE_SIDES else 1)
 
 # model
 # hyperparams
-epochs = 7
+epochs = 5
 # batch_size = 100
 learnrate = 0.001
 
@@ -103,8 +103,8 @@ validation_sample_size = sample_count // 100
 training_sample_size = sample_count - (validation_sample_size)
 
 # , INCLUDE_SIDES
-train_gen = generate_batch(training_samples, augment=False, flipit=True, rand_camera=True)
-validation_gen = generate_batch(validation_samples, False, flipit=True, rand_camera=True)
+train_gen = generate_batch(training_samples)
+validation_gen = generate_batch(validation_samples, augment=False, flipit=True)
 
 print ("training {} samples.".format(sample_count))
 
