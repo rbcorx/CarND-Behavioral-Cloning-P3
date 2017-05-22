@@ -8,6 +8,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 # %matplotlib inline
 
+"""
+___________________________
+Layer (type)                     Output Shape          Param #     Connected to
+====================================================================================================
+lambda_1 (Lambda)                (None, 160, 320, 3)   0           lambda_input_1[0][0]
+____________________________________________________________________________________________________
+cropping2d_1 (Cropping2D)        (None, 70, 320, 3)    0           lambda_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_1 (Convolution2D)  (None, 66, 316, 6)    456         cropping2d_1[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_1 (MaxPooling2D)    (None, 22, 105, 6)    0           convolution2d_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_2 (Convolution2D)  (None, 18, 101, 15)   2265        maxpooling2d_1[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_2 (MaxPooling2D)    (None, 6, 33, 15)     0           convolution2d_2[0][0]
+____________________________________________________________________________________________________
+dense_1 (Dense)                  (None, 6, 33, 100)    1600        maxpooling2d_2[0][0]
+____________________________________________________________________________________________________
+dropout_1 (Dropout)              (None, 6, 33, 100)    0           dense_1[0][0]
+____________________________________________________________________________________________________
+flatten_1 (Flatten)              (None, 19800)         0           dropout_1[0][0]
+____________________________________________________________________________________________________
+dense_2 (Dense)                  (None, 1)             19801       flatten_1[0][0]
+====================================================================================================
+Total params: 24,122
+Trainable params: 24,122
+Non-trainable params: 0
+____________________________
+"""
+
+
 LOG_HEADERS = ["center", "left", "right", "steering", "throttle"]
 
 PATH_TO_DATA_FOLDER = 'data'
@@ -19,7 +50,7 @@ LOG_FILE = 'driving_log.csv'
 # for each dir entry, training data is fetched from corresponding subdirectory
 # TODO add all folders
 # PATHS_TO_IMG_FOLDERS = ['data_ori', ]
-PATHS_TO_IMG_FOLDERS = ['data_ori', "recovery"]  # 'recovery', 'drive']
+PATHS_TO_IMG_FOLDERS = ['track1', "data_ori"]  # "recovery"]  # 'recovery', 'drive']
 # 'data_sides', 'data_lap', 'data_reverse']
 # 'data_ori']#, 'data_sides', 'data_lap', 'data_reverse']
 
@@ -314,7 +345,7 @@ def parse_logs(limit=200000, p_drop_zero=None,
     quit = False
     PATHS_TO_IMG_FOLDERS.extend(replicate_from_folders)
     dropped = 0
-    print("flipping is set to {}".format(DO_FLIP))
+    print("flipping is set to {}".format(settings["DO_FLIP"]))
     for folder in PATHS_TO_IMG_FOLDERS:
         log_file_path = os.path.join(PATH_TO_DATA_FOLDER, folder, LOG_FILE)
         folder_count = 0
@@ -545,9 +576,9 @@ def generate_batch(data, augment=True, batch_size=128, fake=False, flipit=None,
 
 def get_data(limit=None, replicate=[], split_valid=None):
     if limit:
-        data = parse_logs(limit, replicate_from_folders=replicate, flipit=DO_FLIP)
+        data = parse_logs(limit, replicate_from_folders=replicate, flipit=settings["DO_FLIP"])
     else:
-        data = parse_logs(replicate_from_folders=replicate, flipit=DO_FLIP)
+        data = parse_logs(replicate_from_folders=replicate, flipit=settings["DO_FLIP"])
     if settings["SHUFFLE"]:
         np.random.shuffle(data)
     # TODO generalize

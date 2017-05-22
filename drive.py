@@ -46,7 +46,7 @@ class SimplePIController:
 
 
 controller = SimplePIController(0.1, 0.002)
-set_speed = 30
+set_speed = 15
 controller.set_desired(set_speed)
 
 
@@ -66,8 +66,8 @@ def telemetry(sid, data):
         image_array = np.asarray(image)
 
         # custom image manipulation
-        aug_image = create_aug_img_pipeline(augment=False)
-        image_array, _ = aug_image(image_array, 0)
+        # aug_image = create_aug_img_pipeline(augment=False)
+        # image_array, _ = aug_image(image_array, 0)
 
         steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
 
