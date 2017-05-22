@@ -6,36 +6,13 @@ import random
 
 import numpy as np
 import matplotlib.pyplot as plt
-# %matplotlib inline
 
 """
-___________________________
-Layer (type)                     Output Shape          Param #     Connected to
-====================================================================================================
-lambda_1 (Lambda)                (None, 160, 320, 3)   0           lambda_input_1[0][0]
-____________________________________________________________________________________________________
-cropping2d_1 (Cropping2D)        (None, 70, 320, 3)    0           lambda_1[0][0]
-____________________________________________________________________________________________________
-convolution2d_1 (Convolution2D)  (None, 66, 316, 6)    456         cropping2d_1[0][0]
-____________________________________________________________________________________________________
-maxpooling2d_1 (MaxPooling2D)    (None, 22, 105, 6)    0           convolution2d_1[0][0]
-____________________________________________________________________________________________________
-convolution2d_2 (Convolution2D)  (None, 18, 101, 15)   2265        maxpooling2d_1[0][0]
-____________________________________________________________________________________________________
-maxpooling2d_2 (MaxPooling2D)    (None, 6, 33, 15)     0           convolution2d_2[0][0]
-____________________________________________________________________________________________________
-dense_1 (Dense)                  (None, 6, 33, 100)    1600        maxpooling2d_2[0][0]
-____________________________________________________________________________________________________
-dropout_1 (Dropout)              (None, 6, 33, 100)    0           dense_1[0][0]
-____________________________________________________________________________________________________
-flatten_1 (Flatten)              (None, 19800)         0           dropout_1[0][0]
-____________________________________________________________________________________________________
-dense_2 (Dense)                  (None, 1)             19801       flatten_1[0][0]
-====================================================================================================
-Total params: 24,122
-Trainable params: 24,122
-Non-trainable params: 0
-____________________________
+NOTE: almost all augmentation/helper functions have support for 'fake' data, i.e. augment a data item without
+loading the real image to memory. A fake image is just represented by it's height and weight.
+
+The purpose of this is to visualize effects of different params on the final augmented data
+faster by only observing how the steering angles and the image dimensions are changed due to augmentation.
 """
 
 
@@ -49,24 +26,23 @@ LOG_FILE = 'driving_log.csv'
 
 # for each dir entry, training data is fetched from corresponding subdirectory
 # TODO add all folders
-# PATHS_TO_IMG_FOLDERS = ['data_ori', ]
-PATHS_TO_IMG_FOLDERS = ['track1', "data_ori"]  # "recovery"]  # 'recovery', 'drive']
-# 'data_sides', 'data_lap', 'data_reverse']
-# 'data_ori']#, 'data_sides', 'data_lap', 'data_reverse']
+PATHS_TO_IMG_FOLDERS = ['track1', "data_ori"]
+# "recovery"]  # 'recovery', 'drive' 'data_sides', 'data_lap', 'data_reverse']
+
 
 PATH_TO_IMG = 'IMG'
 
 IMAGE_INDEX = [0, 1, 2]
 STEERING_CORRECTION_COEFF = [0, 0.15, -0.15]
-# TODO set to True
-INCLUDE_SIDES = False
+
+INCLUDE_SIDES = True
 # set to false to also augment side images
 
 AUGMENT_IMAGES = True
 # augment images
-DO_SHEAR_PROB = 0.5
+DO_SHEAR_PROB = 0.45
 SHEAR_ATAN_CORRECTION = 5
-SHEAR_RANGE = [0, 75]
+SHEAR_RANGE = [0, 20]
 SHEAR_MU = SHEAR_RANGE[0]
 SHEAR_SIGMA = SHEAR_RANGE[1]
 
@@ -85,7 +61,7 @@ DROP_ZERO_HISTORY_LIM = 1000
 
 DO_FLIP = True
 
-P_KEEP_ZERO = 0.001
+P_KEEP_ZERO = 0.01
 
 P_FLIP = 0.5
 
@@ -141,6 +117,7 @@ settings = {
 
 
 def change_settings(**kwargs):
+    # to dynamically change settings on the go
     settings.update(kwargs)
 
 
@@ -184,14 +161,14 @@ def resize(image, steer, fake=False):
 
 
 def rand_warp_shear(image, steer, shear_right=False, fake=False):
-    """changes steering angle d_steer"""
+    """Shears the image to right/left. Changes steering angle d_steer"""
     # mi, mx = s_range
     h, w = _img_specs(image, fake)
     # if random.random() > settings["DO_SHEAR_PROB"]:
     #     return (image, steer)
     # shear = int(np.random.uniform() * (mx - mi) + mi)
     shear = abs(np.random.normal(settings["SHEAR_MU"], settings["SHEAR_SIGMA"]))  # min(, s_range[1])
-    #shear = abs(random.randint(settings["SHEAR_RANGE"][0], settings["SHEAR_RANGE"][1]))
+    # shear = abs(random.randint(settings["SHEAR_RANGE"][0], settings["SHEAR_RANGE"][1]))
     if shear_right:
         ori_pts = np.float32([[0, 0], [0, h], [w // 2, h // 2]])
         new_pts = np.float32([[0, 0], [0, h], [w // 2 + shear, h // 2]])
@@ -202,7 +179,7 @@ def rand_warp_shear(image, steer, shear_right=False, fake=False):
         ori_pts = np.float32([[w, 0], [w, h], [w // 2, h // 2]])
         new_pts = np.float32([[w, 0], [w, h], [w // 2 - shear, h // 2]])
         #steer = max(-1, steer + math.atan(-shear / (h / 2) / settings["SHEAR_ATAN_CORRECTION"]))
-        steer += shear / (h / 2) * 360 / (2 * np.pi * 25.0) / 6.0
+        steer -= shear / (h / 2) * 360 / (2 * np.pi * 25.0) / 6.0
     if fake:
         return (image, steer)
     matrix = cv2.getAffineTransform(ori_pts, new_pts)
@@ -211,7 +188,7 @@ def rand_warp_shear(image, steer, shear_right=False, fake=False):
 
 
 def rand_warp_shift2D(image, steer, r_tx=[0, 0], r_ty=[20, 30], fake=False):
-    """deprecated. use shear/rotate for better results"""
+    """shifts image in 2D. deprecated. use shear/rotate for better results"""
     h, w = _img_specs(image, fake)
     tx = int(np.random.uniform() * (r_tx[1] - r_tx[0]) + r_tx[0])
     ty = int(np.random.uniform() * (r_ty[1] - r_ty[0]) + r_ty[0])
@@ -223,6 +200,7 @@ def rand_warp_shift2D(image, steer, r_tx=[0, 0], r_ty=[20, 30], fake=False):
 
 
 def rand_warp_rotate(image, steer, range=[-10, 10], left_pivot=False, fake=False):
+    """rotates images while keeping steering angle constant"""
     if fake:
         return (image, steer)
     h, w = _img_specs(image, fake)
@@ -237,7 +215,7 @@ def rand_warp_rotate(image, steer, range=[-10, 10], left_pivot=False, fake=False
 
 
 def flip(image, steer, p_flip=None, fake=False):
-    """changes steering angle cahnges sign only"""
+    """flips image horizontally. changes steering angle, sign only"""
     if p_flip is None:
         p_flip = settings["P_FLIP"]
     if np.random.uniform() <= p_flip:
@@ -249,6 +227,7 @@ def flip(image, steer, p_flip=None, fake=False):
 
 
 def rand_brightness(image, steer, fake=False):
+    """changes image brightness randomly"""
     if fake:
         return (image, steer)
     image_hsv = np.array(cv2.cvtColor(image, cv2.COLOR_RGB2HSV), dtype=np.float64)
@@ -260,9 +239,14 @@ def rand_brightness(image, steer, fake=False):
 
 
 def create_transform_pipeline(*args, **kwargs):
+    """creates transform pipeline to encapsulate transformations within a single func"""
     params = kwargs.get("params", {})
 
     def transform_image(image, steer, plot_pipeline=False, fake=False):
+        """ARGS:
+        plot pipeline (bool): use to make transfromation verbose and compare before after results
+
+        """
         for func in args:
             param = {} if func not in params else params[func]
             if type(param) is dict:
@@ -279,32 +263,40 @@ def create_transform_pipeline(*args, **kwargs):
 
 
 def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None, augment=None,):
+    """Image augmentation pipeline. encapsulates logic of applying series
+        of augmentation on a data entry"""
+
     # normal_dis=False, sample_size=None):
     if not augment:
         augment = settings["AUGMENT_IMAGES"]
+
     left_turn_params = {
         rand_warp_rotate: {"left_pivot": False},
         rand_warp_shear: {"shear_right": False},
     }
+    # augmentations for left turns
     left_turn_trans_img_pipeline = create_transform_pipeline(
-        crop_img, resize,   # rand_warp_shear,  # flip, rand_warp_rotate, rand_brightness,
-        params=left_turn_params
+        rand_warp_shear, rand_warp_rotate, rand_brightness,
+        params=left_turn_params  # crop_img, resize,
     )
     right_turn_params = {
         rand_warp_rotate: {"left_pivot": True},
         rand_warp_shear: {"shear_right": True},
     }
+    # augmentations for right turns
     right_turn_trans_img_pipeline = create_transform_pipeline(
-        crop_img, resize,  # resize, rand_warp_shear,  # flip, rand_warp_rotate, rand_brightness,
-        params=right_turn_params
+        rand_warp_shear, rand_warp_rotate, rand_brightness,
+        params=right_turn_params  # crop_img, resize,
     )
+    # no augmentation pipeline, only crops and resizes image
     not_augmented_img_pipeline = create_transform_pipeline(
-        crop_img, resize,  # resize,
+        # crop_img, resize,
         params={}
     )
     args = [plot, fake]
 
     def augment_image(image, steer, flipit=False):
+
         # deprecated flip implementation
         # if flipit:
         #     return flip(image, steer, 1.0, fake=fake)
@@ -317,7 +309,8 @@ def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None, augmen
         #        return not_augmented_img_pipeline(image, steer, *args)
 
         # TODO generalize coin tosses
-        # Monkey patch normalized distri
+        # Monkey patch normalized distribution
+        # using the probability of not augmenting a zero angle steer, return image as is
         if steer == 0.0:
             if np.random.uniform() <= settings["P_KEEP_ZERO"]:
                 return not_augmented_img_pipeline(image, steer, *args)
@@ -336,6 +329,11 @@ def create_aug_img_pipeline(plot=False, fake=False, accepted_angles=None, augmen
 
 def parse_logs(limit=200000, p_drop_zero=None,
                drop_zero_history_lim=None, replicate_from_folders=[], flipit=None):
+    """parses csv logs to return data entries while also applying:
+            flipping,
+            camera view selection (random or all),
+            gaussian probabilistic filters on dynamic steering angle bins for data normalization"""
+
     if not p_drop_zero:
         p_drop_zero = settings["P_DROP_ZERO"]
     if not drop_zero_history_lim:
@@ -416,6 +414,7 @@ def parse_logs(limit=200000, p_drop_zero=None,
         if quit:
             break
     print ("{} samples dropped based on 00 rules".format(dropped))
+
     """
     appying custom filters by value and count
     """
@@ -426,6 +425,7 @@ def parse_logs(limit=200000, p_drop_zero=None,
     bin_size = settings["FILTER_BIN_SIZE"]
 
     def binify(sorted_list, bin_len=None):
+        """creates bins based on the sorted list provided"""
         if not bin_len:
             bin_len = bin_size
         cur = 1
@@ -446,6 +446,7 @@ def parse_logs(limit=200000, p_drop_zero=None,
         # print ("binified with bin width: {}. \n {}".format(bin_len, bin_dict))
 
     def get_bin(stat, bin_len=None):
+        """get bin for provided statistic"""
         if not bin_len:
             bin_len = bin_size
         cur = 1
@@ -495,6 +496,7 @@ def parse_logs(limit=200000, p_drop_zero=None,
 
 
 def get_img(img_entry, folder, flipit, fake=False):
+    """get image from data entry"""
     if fake:
         return {'h': 160, 'w': 320}
     path = os.path.join(PATH_TO_DATA_FOLDER, folder, PATH_TO_IMG,
@@ -505,8 +507,9 @@ def get_img(img_entry, folder, flipit, fake=False):
     return img
 
 
-def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, rand=False,
+def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, rand=False, augment=False
                               ):
+    """Extract image data, steering angles from csv rows"""
     if not img_index:
         img_index = settings["IMAGE_INDEX"]
     if not angle_offset:
@@ -518,27 +521,42 @@ def extract_samples_from_rows(data, img_index=0, angle_offset=0, fake=False, ran
         angle_offset = [angle_offset, ]
     images = []
     angles = []
+    if augment:
+        aug_image = create_aug_img_pipeline(fake=fake,
+                                        accepted_angles=settings["STEERING_CORRECTION_COEFF"],
+                                        augment=augment)
 
     for row in data:
         angle = float(row[1])
         if row[-1] == "flip":
             angle = -angle
+        # deprecated random choice
         # if rand:
         #     index = random.randint(0, len(img_index) - 1)
-        images.append(get_img(row[0], row[-2], row[-1], fake))
+        img = get_img(row[0], row[-2], row[-1], fake)
+
+        images.append(img)
         angles.append(angle)
+
+        if augment:
+            img_aug, angle_aug = aug_image(img, angle)
+            images.append(img_aug)
+            angles.append(angle_aug)
+
+        # deprecated. mutate row functionality centralized to parse_logs
         # else:
         #     images.extend([get_img(row[i], row[-2], row[-1], fake) for i in img_index])
         #     angles.extend([angle + offset for offset in angle_offset])
-    #
     return (images, angles)
 
 
 def generate_batch(data, augment=True, batch_size=128, fake=False, flipit=None,
                    rand_camera=None):
-    if not flipit:
+    """generates batches of images for keras model"""
+
+    if flipit is None:
         flipit = settings["DO_FLIP"]
-    if not rand_camera:
+    if rand_camera is None:
         rand_camera = (not settings["CHOOSE_ALL_CAMERAS"])
 
     aug_image = create_aug_img_pipeline(fake=fake,
@@ -557,7 +575,7 @@ def generate_batch(data, augment=True, batch_size=128, fake=False, flipit=None,
             images_a, steers_a = zip(*list(map(aug_image, images, steers)))
             images_a, steers_a = list(images_a), list(steers_a)
 
-            # putting flipit functionality to log parser to randomize starting data
+            # deprecated. putting flipit functionality to log parser to randomize starting data
             # if flipit:
             #     flipped_images = []
             #     flipped_steers = []
