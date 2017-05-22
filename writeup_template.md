@@ -116,7 +116,7 @@ The final step was to run the simulator to see how well the car was driving arou
 
 At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road. The vehicle does seem to veer back and forth on the road, which may be due to inaccuracies in choosing steering angles or the normalization of the data.
 
-####2. Final Model Architecture
+#### 2. Final Model Architecture
 
 The final model architecture consisted of a convolution neural network with the layers and layer sizes as visualized.
 
@@ -126,27 +126,27 @@ Here is a visualization of the architecture (note: visualizing the architecture 
 
 ____________________________________________________________________________________________________
 Layer (type)                     Output Shape          Param #     Connected to
-====================================================================================================
-lambda_2 (Lambda)                (None, 160, 320, 3)   0           lambda_input_2[0][0]
 ____________________________________________________________________________________________________
-cropping2d_2 (Cropping2D)        (None, 70, 320, 3)    0           lambda_2[0][0]
+lambda_2 (Lambda)               (None, 160, 320, 3) |  0           lambda_input_2[0][0]
 ____________________________________________________________________________________________________
-convolution2d_3 (Convolution2D)  (None, 66, 316, 6)    456         cropping2d_2[0][0]
+cropping2d_2 (Cropping2D)        (None, 70, 320, 3)  |  0           lambda_2[0][0]
 ____________________________________________________________________________________________________
-maxpooling2d_3 (MaxPooling2D)    (None, 22, 105, 6)    0           convolution2d_3[0][0]
+convolution2d_3 (Convolution2D)  (None, 66, 316, 6)  |  456         cropping2d_2[0][0]
 ____________________________________________________________________________________________________
-convolution2d_4 (Convolution2D)  (None, 18, 101, 15)   2265        maxpooling2d_3[0][0]
+maxpooling2d_3 (MaxPooling2D)    (None, 22, 105, 6)  |  0           convolution2d_3[0][0]
 ____________________________________________________________________________________________________
-maxpooling2d_4 (MaxPooling2D)    (None, 6, 33, 15)     0           convolution2d_4[0][0]
+convolution2d_4 (Convolution2D)  (None, 18, 101, 15) |  2265        maxpooling2d_3[0][0]
 ____________________________________________________________________________________________________
-dense_3 (Dense)                  (None, 6, 33, 100)    1600        maxpooling2d_4[0][0]
+maxpooling2d_4 (MaxPooling2D)    (None, 6, 33, 15)   |  0           convolution2d_4[0][0]
 ____________________________________________________________________________________________________
-dropout_2 (Dropout)              (None, 6, 33, 100)    0           dense_3[0][0]
+dense_3 (Dense)                  (None, 6, 33, 100)  |  1600        maxpooling2d_4[0][0]
 ____________________________________________________________________________________________________
-flatten_2 (Flatten)              (None, 19800)         0           dropout_2[0][0]
+dropout_2 (Dropout)              (None, 6, 33, 100)  |  0           dense_3[0][0]
 ____________________________________________________________________________________________________
-dense_4 (Dense)                  (None, 1)             19801       flatten_2[0][0]
-====================================================================================================
+flatten_2 (Flatten)              (None, 19800)       |  0           dropout_2[0][0]
+____________________________________________________________________________________________________
+dense_4 (Dense)                  (None, 1)           |  19801       flatten_2[0][0]
+____________________________________________________________________________________________________
 Total params: 24,122
 Trainable params: 24,122
 Non-trainable params: 0
