@@ -15,33 +15,6 @@ The goals / steps of this project are the following:
 * Test that the model successfully drives around track one without leaving the road
 * Summarize the results with a written report
 
-#####
-
-Important files:
-
-
-1. Preprocessing data
-
-- filtering
-- data augmentation
-    ...
-- normalization
-- cropping
-
-2. Model architecture
-
-avoiding overfitting
-    dropouts
-    validation
-
-    epochs limits
-
-generator
-
-
-
-#####
-
 
 [//]: # (Image References)
 
@@ -234,3 +207,5 @@ After the collection process, I had 48630 number of data points. I then preproce
 I finally randomly shuffled the data set and put 20% of the data into a validation set.
 
 I used this training data for training the model. The validation set helped determine if the model was over or under fitting. The ideal number of epochs was 10 as evidenced by the plateauing validation loss on going any further. I used an adam optimizer so that manually training the learning rate wasn't necessary.
+
+Then I use generators for training the model so as to deal with memory overflow due to huge amount of images in the dataset. The generator is the `generate_batch` function in the preprocess.py file.
