@@ -50,6 +50,8 @@ My project includes the following files:
 * model.h5 containing a trained convolution neural network
 * preprocess.py containing the data preprocessing/augmentation pipeline and data generators
 * test.ipynb the notebook used for visualization and demonstration
+* report.html: html of the ipython notebook
+* run1.mp4: video of the run
 * writeup_report.md or writeup_report.pdf summarizing the results
 
 ####2. Submission includes functional code
