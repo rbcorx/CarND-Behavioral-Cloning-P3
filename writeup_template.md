@@ -1,8 +1,8 @@
 #**Behavioral Cloning**
 
-##Writeup Template
+## Writeup Template
 
-###You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
 
 ---
 
@@ -28,7 +28,7 @@ The goals / steps of this project are the following:
 [augmented]: ./examples/augmented.png "augmented"
 [class_dist]: ./examples/class_dist.png "class distribution"
 [data_filt_light]: ./examples/data_filt_light.png "data filtered lightly"
-[data_filt]: ./examples/.png "data filtered"
+[data_filt]: ./examples/data_filt.png "data filtered"
 [data_ori]: ./examples/data_ori.png "Original data"
 [gauss]: ./examples/near_gauss.png "nearly gaussian distribution"
 [track2_aug]: ./examples/track2_aug.png "track 2 augmented"
@@ -37,12 +37,12 @@ The goals / steps of this project are the following:
 [track1]: ./examples/track1.png "track 1"
 
 ## Rubric Points
-###Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.
+### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.
 
 ---
-###Files Submitted & Code Quality
+### Files Submitted & Code Quality
 
-####1. Submission includes all required files and can be used to run the simulator in autonomous mode
+#### 1. Submission includes all required files and can be used to run the simulator in autonomous mode
 
 My project includes the following files:
 * model.py containing the script to create and train the model
@@ -54,20 +54,20 @@ My project includes the following files:
 * run1.mp4: video of the run
 * writeup_report.md or writeup_report.pdf summarizing the results
 
-####2. Submission includes functional code
+#### 2. Submission includes functional code
 Using the Udacity provided simulator and my drive.py file, the car can be driven autonomously around the track by executing
 ```sh
 python drive.py model.h5
 ```
 
-####3. Submission code is usable and readable
+#### 3. Submission code is usable and readable
 
 The model.py file contains the code for training and saving the convolution neural network.
 The file preprocess.py contains the image augmentation and preprocessing pipeline.
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
-####1. An appropriate model architecture has been employed
+#### 1. An appropriate model architecture has been employed
 
 I experimented with various model architectures including Nvidia's, the LeNet and a drastically simplified model which I'm currently employing.
 
@@ -79,27 +79,27 @@ Then a convolutional layer with 5x5 kernel and (6) depth is used, with ReLU acti
 
 Starting here, the simplified model is differentiated from the LeNet by the introduction of a fully-connected layer of size 100, followed by a dropout with 0.65 probability of dropout. Next, the output is flattened and followed by the output layer of size 1, to give the steering angle.
 
-####2. Attempts to reduce overfitting in the model
+#### 2. Attempts to reduce overfitting in the model
 
 The model contains a dropout layer to reduce overfitting as mentioned before.
 
 The model was trained and validated on different data sets to ensure that the model was not overfitting. The validation split was 20%.
 
-####3. Model parameter tuning
+#### 3. Model parameter tuning
 
 The model used an adam optimizer, so the learning rate was not tuned manually.
 I use a batch size of 128.
 I use 10 epochs to train the model without overfitting.
 
-####4. Appropriate training data
+#### 4. Appropriate training data
 
 Training data was chosen to keep the vehicle driving on the road. I used a combination of center lane driving, recovering from the left and right sides of the road. I used all three cameras including left, center and right to train the model so it learns how to get back to the center of the road. I added/subtracted steering coefficients for the left/right cameras to adjust the central angle.
 
 The data is highly skewed towards straight driving and I use an extensive data augmentation and filter pipeline to correct that as described in the upcoming sections.
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
-####1. Solution Design Approach
+#### 1. Solution Design Approach
 
 The overall strategy for deriving a model architecture was to use the LeNet architecture to create a simplified convolution network which can gauge the patterns of the tracks approproately.
 
@@ -112,7 +112,7 @@ In order to gauge how well the model was working, I split my image and steering 
 
 I added the dropout regularization layer to combat overfitting which was added just before the flattening layer as more pathways will have more robust and redundant representations of the useful features in the network.
 
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track... to improve the driving behavior in these cases, I ....
+The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track like the dirt trail after the bridge and to improve the driving behavior in these cases, I collected some more recovery data in the problem areas, teaching the car how to recover back to center in such cases.
 
 At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road. The vehicle does seem to veer back and forth on the road, which may be due to inaccuracies in choosing steering angles or the normalization of the data.
 
@@ -151,7 +151,7 @@ Total params: 24,122
 Trainable params: 24,122
 Non-trainable params: 0
 
-####3. Creation of the Training Set & Training Process
+#### 3. Creation of the Training Set & Training Process
 
 After doing the initial data exploration, I found that the data is completely skewed in favor of straight driving. And the turns which we do have are mostly skewed in favor of left.
 

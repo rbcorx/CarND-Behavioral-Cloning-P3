@@ -6,6 +6,7 @@ import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 """
 NOTE: almost all augmentation/helper functions have support for 'fake' data, i.e. augment a data item without
@@ -501,7 +502,7 @@ def get_img(img_entry, folder, flipit, fake=False):
         return {'h': 160, 'w': 320}
     path = os.path.join(PATH_TO_DATA_FOLDER, folder, PATH_TO_IMG,
                         img_entry.split('/')[-1])
-    img = cv2.imread(path)
+    img = mpimg.imread(path)
     if flipit == "flip":
         img, _ = flip(img, 0, 2.0, fake=fake)
     return img
